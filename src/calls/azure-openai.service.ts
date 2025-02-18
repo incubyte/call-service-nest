@@ -18,19 +18,42 @@ const openAiKey = process.env.AZURE_OPENAI_SERVICE_KEY || '';
 const openAiDeploymentModel =
   process.env.AZURE_OPENAI_DEPLOYMENT_MODEL_NAME || '';
 
-const answerPromptSystemTemplate = `You are an AI assistant that helps people find information. Warmly greet the person and ask for the name of the person speaking. Wait for some time before he responds. After that ask them how you can help them. Respond with exact same text that you got from function call.`;
-
 @Injectable()
 export class AzureOpenAiService {
   private realtimeStreaming: LowLevelRTClient;
   private ws: WebSocket;
+  private systemPrompt?: string;
+  private tools?: {
+    type: string;
+    name: string;
+    description: string;
+    parameters: any;
+  }[];
 
-  async startConversation(): Promise<void> {
+  async startConversation({
+    systemPrompt,
+    tools,
+  }: {
+    systemPrompt: string;
+    tools?: {
+      type: string;
+      name: string;
+      description: string;
+      parameters: any;
+    }[];
+  }): Promise<void> {
     console.log({
       openAiDeploymentModel,
       openAiServiceEndpoint,
       openAiKey,
     });
+
+    this.systemPrompt = systemPrompt;
+    this.tools = tools;
+
+    if (!systemPrompt && !tools) {
+      throw new Error('System prompt and tools are required');
+    }
 
     await this.startRealtime(
       openAiServiceEndpoint,
@@ -69,7 +92,7 @@ export class AzureOpenAiService {
     const configMessage: SessionUpdateMessage = {
       type: 'session.update',
       session: {
-        instructions: answerPromptSystemTemplate,
+        instructions: this.systemPrompt,
         voice: 'shimmer',
         input_audio_format: 'pcm16',
         output_audio_format: 'pcm16',
@@ -79,28 +102,8 @@ export class AzureOpenAiService {
         input_audio_transcription: {
           model: 'whisper-1',
         },
-        // Uncomment or adjust temperature if needed:
-        // temperature: 0.6,
-        tools: [
-          {
-            type: 'function',
-            name: 'referToAICompanion',
-            description:
-              'Call this to get information about AI companion and Vaalee.',
-            parameters: {
-              type: 'object',
-              properties: {
-                user_query: {
-                  type: 'string',
-                  description: 'User query to refer to AI companion and Vaalee',
-                },
-              },
-              required: ['user_query'],
-              additionalProperties: false,
-            },
-          },
-        ],
-        tool_choice: 'auto',
+        tools: this.tools,
+        tool_choice: (this.tools?.length ?? 0) > 0 ? 'auto' : 'none',
       },
     };
     return configMessage;

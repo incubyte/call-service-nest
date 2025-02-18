@@ -18,10 +18,6 @@ async function bootstrap() {
   // Get the HTTP server from Nest
   const server = app.getHttpServer() as Server;
 
-  // Initialize your ACS Client (from your callsService) at startup.
-  const callsService = app.get(CallsService);
-  callsService.initAcsClient();
-
   // Attach the WebSocket server.
   const wss = new WebSocket.Server({ server });
   const azureOpenAiService = app.get(AzureOpenAiService);
@@ -32,11 +28,6 @@ async function bootstrap() {
 
     // Pass the WebSocket instance to the AzureOpenAiService
     azureOpenAiService.initWebsocket(ws);
-
-    // Start the Azure OpenAI conversation and handle any errors
-    azureOpenAiService.startConversation().catch((error) => {
-      console.error('Error starting conversation:', error);
-    });
 
     ws.on('message', (packetData: WebSocket.Data) => {
       try {
