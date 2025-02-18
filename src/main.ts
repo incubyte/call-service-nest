@@ -20,7 +20,7 @@ async function bootstrap() {
 
   // Initialize your ACS Client (from your callsService) at startup.
   const callsService = app.get(CallsService);
-  await callsService.initAcsClient();
+  callsService.initAcsClient();
 
   // Attach the WebSocket server.
   const wss = new WebSocket.Server({ server });
