@@ -5,7 +5,6 @@ import { AzureOpenAiService } from './azure-openai.service';
 import { RetrievalService } from './retrieval.service';
 import { MediaStreamingHandler } from './media-streaming.handler';
 
-
 @Module({
   controllers: [CallsController],
   providers: [

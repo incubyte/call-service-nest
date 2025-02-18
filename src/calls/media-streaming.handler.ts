@@ -11,7 +11,7 @@ export class MediaStreamingHandler {
   constructor(private readonly azureOpenAiService: AzureOpenAiService) {}
 
   async processWebsocketMessageAsync(
-    receivedBuffer: ArrayBuffer
+    receivedBuffer: ArrayBuffer,
   ): Promise<void> {
     const result = StreamingData.parse(receivedBuffer);
     const kind = StreamingData.getStreamingKind();

@@ -23,9 +23,7 @@ export class RetrievalService {
 
   async getRetriever(indexName: string, question: string) {
     const vectorStore = await this.getVectorStore(indexName);
-    const retrievedDocs = await vectorStore.similaritySearchWithScore(
-      question
-    );
+    const retrievedDocs = await vectorStore.similaritySearchWithScore(question);
     const processedRetrievedDocs = retrievedDocs.map(
       ([doc, score]: [DocumentInterface, number]) => {
         if (score < THRESHOLD) return null;
@@ -33,6 +31,7 @@ export class RetrievalService {
         const nodeContent = JSON.parse(nodeContentString) as {
           text: string;
         };
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { _node_content, ...metadata } = doc.metadata;
         const retrievedDoc: DocumentInterface = {
           pageContent: nodeContent.text,
@@ -40,21 +39,16 @@ export class RetrievalService {
           metadata: { ...metadata },
         };
         return retrievedDoc;
-      }
+      },
     );
     return {
-      context: processedRetrievedDocs.filter(
-        (doc) => doc !== null
-      ),
+      context: processedRetrievedDocs.filter((doc) => doc !== null),
     };
   }
 }
 
 // Export a helper function if needed by the AzureOpenAiService.
-export async function getRetriever(
-  indexName: string,
-  question: string
-) {
+export async function getRetriever(indexName: string, question: string) {
   const service = new RetrievalService();
   return await service.getRetriever(indexName, question);
 }
