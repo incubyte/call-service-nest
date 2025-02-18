@@ -11,11 +11,9 @@ import {
 import { OutStreamingData } from '@azure/communication-call-automation';
 import { getRetriever } from './retrieval.service';
 
-
 config();
 
-const openAiServiceEndpoint =
-  process.env.AZURE_OPENAI_SERVICE_ENDPOINT || '';
+const openAiServiceEndpoint = process.env.AZURE_OPENAI_SERVICE_ENDPOINT || '';
 const openAiKey = process.env.AZURE_OPENAI_SERVICE_KEY || '';
 const openAiDeploymentModel =
   process.env.AZURE_OPENAI_DEPLOYMENT_MODEL_NAME || '';
@@ -37,20 +35,20 @@ export class AzureOpenAiService {
     await this.startRealtime(
       openAiServiceEndpoint,
       openAiKey,
-      openAiDeploymentModel
+      openAiDeploymentModel,
     );
   }
 
   private async startRealtime(
     endpoint: string,
     apiKey: string,
-    deploymentOrModel: string
+    deploymentOrModel: string,
   ) {
     try {
       this.realtimeStreaming = new LowLevelRTClient(
         new URL(endpoint),
         { key: apiKey },
-        { deployment: deploymentOrModel }
+        { deployment: deploymentOrModel },
       );
       console.log('sending session config');
       await this.realtimeStreaming.send(this.createConfigMessage());
@@ -60,12 +58,10 @@ export class AzureOpenAiService {
     }
 
     // Start handling realtime messages asynchronously.
-    setImmediate(async () => {
-      try {
-        await this.handleRealtimeMessages();
-      } catch (error) {
+    setImmediate(() => {
+      this.handleRealtimeMessages().catch((error) => {
         console.error('Error handling real-time messages:', error);
-      }
+      });
     });
   }
 
@@ -96,8 +92,7 @@ export class AzureOpenAiService {
               properties: {
                 user_query: {
                   type: 'string',
-                  description:
-                    'User query to refer to AI companion and Vaalee',
+                  description: 'User query to refer to AI companion and Vaalee',
                 },
               },
               required: ['user_query'],
@@ -125,23 +120,24 @@ export class AzureOpenAiService {
   }
 
   private async executeFunctionCall(
-    message: ServerMessageType
-  ): Promise<any> {
+    message: ServerMessageType,
+  ): Promise<string> {
     try {
       const functionCallMessage =
         message as ResponseFunctionCallArgumentsDoneMessage;
-      const argumentsObject = JSON.parse(functionCallMessage.arguments);
-      const result = await this.referToAICompanion(
-        argumentsObject.user_query
-      );
+      const argumentsObject = JSON.parse(functionCallMessage.arguments) as {
+        user_query: string;
+      };
+      const result = await this.referToAICompanion(argumentsObject.user_query);
       console.log('Function Call Results:', result);
       return result;
     } catch (error) {
       console.error('Error handling function call:', error);
     }
+    return '';
   }
 
-  private async referToAICompanion(user_query: string): Promise<any> {
+  private async referToAICompanion(user_query: string): Promise<string> {
     try {
       console.log('Referring to medical database for:', user_query);
       const similarDocs = await getRetriever('tenant-a', user_query);
@@ -150,10 +146,7 @@ export class AzureOpenAiService {
         .join('\n');
       return similarChunksJoined;
     } catch (error) {
-      console.error(
-        "Error referring to medical database:",
-        error
-      );
+      console.error('Error referring to medical database:', error);
       return "Sorry, I couldn't find the information you're looking for. Please try again.";
     }
   }
@@ -162,10 +155,7 @@ export class AzureOpenAiService {
     for await (const message of this.realtimeStreaming.messages()) {
       switch (message.type) {
         case 'session.created':
-          console.log(
-            'session started with id:',
-            message.session.id
-          );
+          console.log('session started with id:', message.session.id);
           break;
         case 'response.audio_transcript.delta':
           // Optionally process partial transcription here.
@@ -192,9 +182,9 @@ export class AzureOpenAiService {
           break;
         case 'input_audio_buffer.speech_started':
           console.log(
-            `Voice activity detection started at ${message.audio_start_ms} ms`
+            `Voice activity detection started at ${message.audio_start_ms} ms`,
           );
-          this.stopAudio();
+          await this.stopAudio();
           break;
         case 'conversation.item.input_audio_transcription.completed':
           console.log(`User:- ${message.transcript}`);
@@ -214,10 +204,10 @@ export class AzureOpenAiService {
     }
   }
 
-  private stopAudio(): void {
+  private async stopAudio(): Promise<void> {
     try {
       const jsonData = OutStreamingData.getStopAudioForOutbound();
-      this.sendMessage(jsonData);
+      await this.sendMessage(jsonData);
     } catch (e) {
       console.error(e);
     }
@@ -226,7 +216,7 @@ export class AzureOpenAiService {
   private async receiveAudioForOutbound(data: string): Promise<void> {
     try {
       const jsonData = OutStreamingData.getStreamingDataForOutbound(data);
-      this.sendMessage(jsonData);
+      await this.sendMessage(jsonData);
     } catch (e) {
       console.error(e);
     }
@@ -241,15 +231,13 @@ export class AzureOpenAiService {
         return;
       } else {
         console.warn(
-          `WebSocket is not open. Retrying... (${retries + 1}/${maxRetries})`
+          `WebSocket is not open. Retrying... (${retries + 1}/${maxRetries})`,
         );
         retries++;
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
-    console.error(
-      'Failed to send message: WebSocket connection is not open.'
-    );
+    console.error('Failed to send message: WebSocket connection is not open.');
   }
 
   // Called from our WebSocket connection setup to initialize the socket
