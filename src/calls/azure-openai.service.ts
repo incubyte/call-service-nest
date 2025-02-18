@@ -236,7 +236,7 @@ export class AzureOpenAiService {
     const maxRetries = 5;
     let retries = 0;
     while (retries < maxRetries) {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      if (this.ws && this.ws.readyState === 1) {
         this.ws.send(data);
         return;
       } else {
