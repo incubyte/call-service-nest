@@ -1,14 +1,42 @@
-import { Injectable } from '@nestjs/common';
 import {
-  CallAutomationClient,
   AnswerCallOptions,
   AnswerCallResult,
+  CallAutomationClient,
   MediaStreamingOptions,
+  type CallConnected,
+  type CallDisconnected,
+  type MediaStreamingFailed,
+  type MediaStreamingStarted,
+  type MediaStreamingStopped,
 } from '@azure/communication-call-automation';
+import { Injectable } from '@nestjs/common';
 import { config } from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
+import { IncomingCallRequestBody } from './calls.controller';
 
 config();
+
+export type CustomCallAutomationEvent =
+  | {
+      type: 'Microsoft.Communication.MediaStreamingStarted';
+      data: MediaStreamingStarted;
+    }
+  | {
+      type: 'Microsoft.Communication.MediaStreamingStopped';
+      data: MediaStreamingStopped;
+    }
+  | {
+      type: 'Microsoft.Communication.CallConnected';
+      data: CallConnected;
+    }
+  | {
+      type: 'Microsoft.Communication.CallDisconnected';
+      data: CallDisconnected;
+    }
+  | {
+      type: 'Microsoft.Communication.MediaStreamingFailed';
+      data: MediaStreamingFailed;
+    };
 
 @Injectable()
 export class CallsService {
@@ -16,13 +44,15 @@ export class CallsService {
   private answerCallResult: AnswerCallResult;
   private callerId: string;
 
-  async initAcsClient(): Promise<void> {
+  initAcsClient(): void {
     const connectionString = process.env.CONNECTION_STRING || '';
     this.acsClient = new CallAutomationClient(connectionString);
     console.log('Initialized ACS Client.');
   }
 
-  async handleIncomingCall(eventData: any): Promise<void> {
+  async handleIncomingCall(
+    eventData: IncomingCallRequestBody['data'],
+  ): Promise<void> {
     this.callerId = eventData.from.rawId;
     const uuid = uuidv4();
     const callbackUri = `${process.env.CALLBACK_URI}/api/callbacks/${uuid}?callerId=${this.callerId}`;
@@ -30,7 +60,7 @@ export class CallsService {
     // Replace the "https" protocol with "wss" for WebSocket transport.
     const websocketUrl = process.env.CALLBACK_URI!.replace(
       /^https:\/\//,
-      'wss://'
+      'wss://',
     );
     const mediaStreamingOptions: MediaStreamingOptions = {
       transportUrl: websocketUrl,
@@ -50,48 +80,49 @@ export class CallsService {
     this.answerCallResult = await this.acsClient.answerCall(
       incomingCallContext,
       callbackUri,
-      answerCallOptions
+      answerCallOptions,
     );
 
     console.log(
-      `Answer call ConnectionId: ${this.answerCallResult.callConnectionProperties.callConnectionId}`
+      `Answer call ConnectionId: ${this.answerCallResult.callConnectionProperties.callConnectionId}`,
     );
   }
 
-  async processCallbackEvent(event: any): Promise<void> {
-    const eventData = event.data;
-    const callConnectionId = eventData.callConnectionId;
-    console.log(
-      `Received Event: ${event.type}, Correlation Id: ${eventData.correlationId}, CallConnectionId: ${callConnectionId}`
-    );
-
+  async processCallbackEvent(event: CustomCallAutomationEvent): Promise<void> {
     switch (event.type) {
       case 'Microsoft.Communication.CallConnected': {
-        const callConnectionProperties =
-          await this.acsClient
-            .getCallConnection(callConnectionId)
-            .getCallConnectionProperties();
+        const eventData = event.data;
+        const callConnectionId = eventData.callConnectionId;
+        console.log(
+          `Received Event: ${event.type}, Correlation Id: ${eventData.correlationId}, CallConnectionId: ${callConnectionId}`,
+        );
+        const callConnectionProperties = await this.acsClient
+          .getCallConnection(callConnectionId)
+          .getCallConnectionProperties();
         console.log(
           'MediaStreamingSubscription:',
-          JSON.stringify(callConnectionProperties.mediaStreamingSubscription)
+          JSON.stringify(callConnectionProperties.mediaStreamingSubscription),
         );
         break;
       }
       case 'Microsoft.Communication.MediaStreamingStarted': {
+        const eventData = event.data;
         console.log(
-          `Operation context: ${eventData.operationContext}, contentType: ${eventData.mediaStreamingUpdate.contentType}, status: ${eventData.mediaStreamingUpdate.mediaStreamingStatus}`
+          `Operation context: ${eventData.operationContext}, contentType: ${eventData.mediaStreamingUpdate?.contentType}, status: ${eventData.mediaStreamingUpdate?.mediaStreamingStatus}`,
         );
         break;
       }
       case 'Microsoft.Communication.MediaStreamingStopped': {
+        const eventData = event.data;
         console.log(
-          `Operation context: ${eventData.operationContext}, contentType: ${eventData.mediaStreamingUpdate.contentType}, status: ${eventData.mediaStreamingUpdate.mediaStreamingStatus}`
+          `Operation context: ${eventData.operationContext}, contentType: ${eventData.mediaStreamingUpdate?.contentType}, status: ${eventData.mediaStreamingUpdate?.mediaStreamingStatus}`,
         );
         break;
       }
       case 'Microsoft.Communication.MediaStreamingFailed': {
+        const eventData = event.data;
         console.log(
-          `Operation context: ${eventData.operationContext}, Code: ${eventData.resultInformation.code}, Subcode: ${eventData.resultInformation.subCode}, Message: ${eventData.resultInformation.message}`
+          `Operation context: ${eventData.operationContext}, Code: ${eventData.resultInformation?.code}, Subcode: ${eventData.resultInformation?.subCode}, Message: ${eventData.resultInformation?.message}`,
         );
         break;
       }
