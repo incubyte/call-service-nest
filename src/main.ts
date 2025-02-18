@@ -61,6 +61,7 @@ async function bootstrap() {
         console.error('Error processing WebSocket message:', error);
       }
     });
+
     ws.on('close', () => {
       console.log('Client disconnected');
     });
